@@ -20,7 +20,7 @@ PRAKTIKUM_TOKEN = os.getenv('PRAKTIKUM_TOKEN')
 REJECTED = 'rejected'
 REJECTED_VERDICT = 'К сожалению, в работе нашлись ошибки.'
 SENDING_MSG = 'Отправлено сообщение.'
-SLEEP_TIME = 5 * 60
+SLEEP_TIME = 10 * 60
 START_BOT_MSG = 'Бот стартовал!'
 START_TIME = 0
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -70,13 +70,14 @@ def main():
                 message = parse_homework_status(last_homework)
                 send_message(message)
                 logging.info(SENDING_MSG)
-                current_timestamp = homework['current_date']
-                time.sleep(SLEEP_TIME)
+            current_timestamp = homework['current_date']
+            time.sleep(SLEEP_TIME)
 
         except Exception as e:
             message = EXCEPTION_MESSAGE.format(error=e)
             logging.exception(message)
             send_message(message)
+            logging.info(SENDING_MSG)
             time.sleep(EXCEPT_SLEEP_TIME)
 
 
