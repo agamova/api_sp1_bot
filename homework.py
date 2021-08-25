@@ -70,7 +70,8 @@ def main():
                 message = parse_homework_status(last_homework)
                 send_message(message)
                 logging.info(SENDING_MSG)
-            current_timestamp = homework['current_date']
+            if homework.get('current_date'):
+                current_timestamp = homework['current_date']
             time.sleep(SLEEP_TIME)
 
         except Exception as e:
