@@ -11,7 +11,6 @@ load_dotenv()
 
 APPROVED_VERDICT = 'Ревьюеру всё понравилось, работа зачтена!'
 BOT_MESSAGE = 'У вас проверили работу "{homework_name}"!\n\n{verdict}'
-EXCEPT_SLEEP_TIME = 5
 MSG_BOT_IS_DOWN = 'Бот упал с ошибкой: {error}'
 MSG_VAR_NOT_FOUND = ('Не найдена переменная {var} в пространстве'
                      ' переменных среды')
@@ -78,7 +77,8 @@ def send_message(message):
     """Sends a message to the user with chat_id."""
     if message:
         try:
-            return bot.send_message(CHAT_ID, message)
+            bot.send_message(CHAT_ID, message)
+            logger.info(SENDING_MSG)
         except Exception:
             raise Exception(SEND_MESSAGE_ERROR)
 
@@ -93,7 +93,6 @@ def main():
                 last_homework = homework['homeworks'][0]
                 message = parse_homework_status(last_homework)
                 send_message(message)
-                logger.info(SENDING_MSG)
             if homework.get('current_date'):
                 current_timestamp = homework['current_date']
             time.sleep(SLEEP_TIME)
@@ -101,7 +100,6 @@ def main():
             message = MSG_BOT_IS_DOWN.format(error=error)
             logger.exception(message)
             send_message(message)
-            logger.info(SENDING_MSG)
             raise Exception(error)
 
 
