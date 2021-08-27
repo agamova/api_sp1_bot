@@ -5,58 +5,82 @@ import telegram
 import time
 
 from dotenv import load_dotenv
-
+from logging.handlers import RotatingFileHandler
 
 load_dotenv()
 
 APPROVED_VERDICT = 'Ревьюеру всё понравилось, работа зачтена!'
 BOT_MESSAGE = 'У вас проверили работу "{homework_name}"!\n\n{verdict}'
-CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 EXCEPT_SLEEP_TIME = 5
-EXCEPTION_MESSAGE = 'Бот упал с ошибкой: {error}'
-FILEMODE = 'a'
-FILENAME = 'main.log'
-PRAKTIKUM_TOKEN = os.getenv('PRAKTIKUM_TOKEN')
-REJECTED = 'rejected'
+MSG_BOT_IS_DOWN = 'Бот упал с ошибкой: {error}'
+MSG_VAR_NOT_FOUND = ('Не найдена переменная {var} в пространстве'
+                     ' переменных среды')
+FILENAME = __file__ + '.log'
+LOG_FORMAT = '%(asctime)s, %(levelname)s, %(message)s, %(name)s'
 REJECTED_VERDICT = 'К сожалению, в работе нашлись ошибки.'
+REQUEST_ERROR_MSG = 'Не удалось выполнить запрос! Ошибка {error}.'
+JSON_ERROR_MSG = 'Запрос выполнен с ошибкой: {error}, код: {code}'
 SENDING_MSG = 'Отправлено сообщение.'
+SEND_MESSAGE_ERROR = 'Ошибка при отправке сообщения!'
 SLEEP_TIME = 10 * 60
 START_BOT_MSG = 'Бот стартовал!'
-START_TIME = 0
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+START_TIME = int(time.time())
+TIME_ERROR_MSG = 'Неверный формат даты! Ожидаемый тип INT или FLOAT'
 URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {
-    'Authorization': f'OAuth {PRAKTIKUM_TOKEN}'
+try:
+    CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+    PRAKTIKUM_TOKEN = os.environ['PRAKTIKUM_TOKEN']
+    TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
+except KeyError as error:
+    raise KeyError(MSG_VAR_NOT_FOUND.format(var=error))
+HEADERS = {'Authorization': f'OAuth {PRAKTIKUM_TOKEN}'}
+STATUSES_DICT = {
+    'rejected': REJECTED_VERDICT,
+    'approved': APPROVED_VERDICT,
 }
 
-logging.basicConfig(level=logging.DEBUG, filename=FILENAME, filemode=FILEMODE)
+logging.basicConfig(format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = RotatingFileHandler(FILENAME, maxBytes=50000000, backupCount=2)
+logger.addHandler(handler)
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
-logging.debug(START_BOT_MSG)
+logger.debug(START_BOT_MSG)
 
 
 def parse_homework_status(homework):
     """Returns a message about homework status."""
-    homework_status = homework['status']
-    homework_name = homework['homework_name']
-    if homework_status == REJECTED:
-        verdict = REJECTED_VERDICT
-    else:
-        verdict = APPROVED_VERDICT
-    return BOT_MESSAGE.format(homework_name=homework_name, verdict=verdict)
+    homework_status = homework.get('status')
+    homework_name = homework.get('homework_name')
+    if homework_status and homework_name:
+        verdict = STATUSES_DICT.get(homework_status)
+        return BOT_MESSAGE.format(homework_name=homework_name, verdict=verdict)
 
 
 def get_homeworks(current_timestamp):
     """Returns data about all homeworks from current timestamp."""
-    url = URL
-    headers = HEADERS
+    if not isinstance(current_timestamp, (int, float)):
+        raise TypeError(TIME_ERROR_MSG)
     params = {'from_date': current_timestamp}
-    homework_statuses = requests.get(url, headers=headers, params=params)
-    return homework_statuses.json()
+    try:
+        response = requests.get(URL, headers=HEADERS, params=params)
+        response_dict = response.json()
+        if response_dict.get('code') or response_dict.get('error'):
+            code = response_dict.get('code')
+            error = response_dict.get('error')
+            raise Exception(JSON_ERROR_MSG.format(error=error, code=code))
+        return response_dict
+    except Exception as error:
+        raise Exception(REQUEST_ERROR_MSG.format(error=error))
 
 
 def send_message(message):
     """Sends a message to the user with chat_id."""
-    return bot.send_message(CHAT_ID, message)
+    if message:
+        try:
+            return bot.send_message(CHAT_ID, message)
+        except Exception:
+            raise Exception(SEND_MESSAGE_ERROR)
 
 
 def main():
@@ -69,17 +93,16 @@ def main():
                 last_homework = homework['homeworks'][0]
                 message = parse_homework_status(last_homework)
                 send_message(message)
-                logging.info(SENDING_MSG)
+                logger.info(SENDING_MSG)
             if homework.get('current_date'):
                 current_timestamp = homework['current_date']
             time.sleep(SLEEP_TIME)
-
-        except Exception as e:
-            message = EXCEPTION_MESSAGE.format(error=e)
-            logging.exception(message)
+        except Exception as error:
+            message = MSG_BOT_IS_DOWN.format(error=error)
+            logger.exception(message)
             send_message(message)
-            logging.info(SENDING_MSG)
-            time.sleep(EXCEPT_SLEEP_TIME)
+            logger.info(SENDING_MSG)
+            raise Exception(error)
 
 
 if __name__ == '__main__':
