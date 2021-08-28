@@ -9,22 +9,24 @@ from logging.handlers import RotatingFileHandler
 
 load_dotenv()
 
-APPROVED_VERDICT = 'Ревьюеру всё понравилось, работа зачтена!'
-BOT_MESSAGE = 'У вас проверили работу "{homework_name}"!\n\n{verdict}'
+BOT_MESSAGE = 'У вас проверили работу "{homework_name}"!\n\n'
+APPROVED_VERDICT = f'{BOT_MESSAGE}Ревьюеру всё понравилось, работа зачтена!'
 MSG_BOT_IS_DOWN = 'Бот упал с ошибкой: {error}'
 MSG_VAR_NOT_FOUND = ('Не найдена переменная {var} в пространстве'
                      ' переменных среды')
 FILENAME = __file__ + '.log'
+HOMEWORK_ERROR_MSG = 'Отсутствует необходимая информация о домашней работе.'
 LOG_FORMAT = '%(asctime)s, %(levelname)s, %(message)s, %(name)s'
-REJECTED_VERDICT = 'К сожалению, в работе нашлись ошибки.'
+REJECTED_VERDICT = f'{BOT_MESSAGE}К сожалению, в работе нашлись ошибки.'
 REQUEST_ERROR_MSG = 'Не удалось выполнить запрос! Ошибка {error}.'
+REVIEWING_VERDICT = 'Работа {homework_name} взята в ревью.'
 JSON_ERROR_MSG = 'Запрос выполнен с ошибкой: {error}, код: {code}'
 SENDING_MSG = 'Отправлено сообщение.'
 SEND_MESSAGE_ERROR = 'Ошибка при отправке сообщения!'
 SLEEP_TIME = 10 * 60
 START_BOT_MSG = 'Бот стартовал!'
-START_TIME = int(time.time())
-TIME_ERROR_MSG = 'Неверный формат даты! Ожидаемый тип INT или FLOAT'
+START_TIME = 0
+TIME_ERROR_MSG = 'Некорректная дата!'
 URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'
 try:
     CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
@@ -36,6 +38,7 @@ HEADERS = {'Authorization': f'OAuth {PRAKTIKUM_TOKEN}'}
 STATUSES_DICT = {
     'rejected': REJECTED_VERDICT,
     'approved': APPROVED_VERDICT,
+    'reviewing': REVIEWING_VERDICT,
 }
 
 logging.basicConfig(format=LOG_FORMAT)
@@ -51,14 +54,15 @@ def parse_homework_status(homework):
     """Returns a message about homework status."""
     homework_status = homework.get('status')
     homework_name = homework.get('homework_name')
-    if homework_status and homework_name:
-        verdict = STATUSES_DICT.get(homework_status)
-        return BOT_MESSAGE.format(homework_name=homework_name, verdict=verdict)
+    if homework_status not in STATUSES_DICT or not homework_name:
+        raise KeyError(HOMEWORK_ERROR_MSG)
+    verdict = STATUSES_DICT.get(homework_status)
+    return verdict.format(homework_name=homework_name)
 
 
 def get_homeworks(current_timestamp):
     """Returns data about all homeworks from current timestamp."""
-    if not isinstance(current_timestamp, (int, float)):
+    if not time.ctime(current_timestamp):
         raise TypeError(TIME_ERROR_MSG)
     params = {'from_date': current_timestamp}
     try:
