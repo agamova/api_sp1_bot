@@ -6,27 +6,28 @@ import time
 
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
+from telegram import TelegramError
+
 
 load_dotenv()
 
-BOT_MESSAGE = 'У вас проверили работу "{homework_name}"!\n\n'
-APPROVED_VERDICT = f'{BOT_MESSAGE}Ревьюеру всё понравилось, работа зачтена!'
+
+BOT_ERROR_MSG = 'Ошибка инициализации бота: {error}'
 MSG_BOT_IS_DOWN = 'Бот упал с ошибкой: {error}'
 MSG_VAR_NOT_FOUND = ('Не найдена переменная {var} в пространстве'
                      ' переменных среды')
 FILENAME = __file__ + '.log'
-HOMEWORK_ERROR_MSG = 'Отсутствует необходимая информация о домашней работе.'
+HOMEWORK_ERROR_MSG = ('Отсутствует необходимая информация о домашней работе.\n'
+                      'status: {status}, name: {name}')
 LOG_FORMAT = '%(asctime)s, %(levelname)s, %(message)s, %(name)s'
-REJECTED_VERDICT = f'{BOT_MESSAGE}К сожалению, в работе нашлись ошибки.'
-REQUEST_ERROR_MSG = 'Не удалось выполнить запрос! Ошибка {error}.'
-REVIEWING_VERDICT = 'Работа {homework_name} взята в ревью.'
+REQUEST_ERR_MSG = 'Не удалось выполнить запрос {dict}! Ошибка {error}.'
 JSON_ERROR_MSG = 'Запрос выполнен с ошибкой: {error}, код: {code}'
 SENDING_MSG = 'Отправлено сообщение.'
 SEND_MESSAGE_ERROR = 'Ошибка при отправке сообщения!'
 SLEEP_TIME = 10 * 60
 START_BOT_MSG = 'Бот стартовал!'
-START_TIME = 0
-TIME_ERROR_MSG = 'Некорректная дата!'
+START_TIME = int(time.time())
+TIME_ERROR_MSG = '{timestamp} не конвертируется в дату!'
 URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'
 try:
     CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
@@ -36,9 +37,11 @@ except KeyError as error:
     raise KeyError(MSG_VAR_NOT_FOUND.format(var=error))
 HEADERS = {'Authorization': f'OAuth {PRAKTIKUM_TOKEN}'}
 STATUSES_DICT = {
-    'rejected': REJECTED_VERDICT,
-    'approved': APPROVED_VERDICT,
-    'reviewing': REVIEWING_VERDICT,
+    'rejected': ('У вас проверили работу "{homework_name}"!\n\n'
+                 'К сожалению, в работе нашлись ошибки.'),
+    'approved': ('У вас проверили работу "{homework_name}"!\n\n'
+                 'Ревьюеру всё понравилось, работа зачтена!'),
+    'reviewing': 'Работа {homework_name} взята в ревью.',
 }
 
 logging.basicConfig(format=LOG_FORMAT)
@@ -47,7 +50,11 @@ logger.setLevel(logging.DEBUG)
 handler = RotatingFileHandler(FILENAME, maxBytes=50000000, backupCount=2)
 logger.addHandler(handler)
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
-logger.debug(START_BOT_MSG)
+# try:
+#     bot.get_me()
+#     logger.debug(START_BOT_MSG)
+# except TelegramError as error:
+#     raise TelegramError(BOT_ERROR_MSG.format(error=error))
 
 
 def parse_homework_status(homework):
@@ -55,18 +62,26 @@ def parse_homework_status(homework):
     homework_status = homework.get('status')
     homework_name = homework.get('homework_name')
     if homework_status not in STATUSES_DICT or not homework_name:
-        raise KeyError(HOMEWORK_ERROR_MSG)
+        raise KeyError(
+            HOMEWORK_ERROR_MSG.format(
+                status=homework_status,
+                name=homework_name
+            )
+        )
     verdict = STATUSES_DICT.get(homework_status)
     return verdict.format(homework_name=homework_name)
 
 
 def get_homeworks(current_timestamp):
     """Returns data about all homeworks from current timestamp."""
-    if not time.ctime(current_timestamp):
-        raise TypeError(TIME_ERROR_MSG)
-    params = {'from_date': current_timestamp}
     try:
-        response = requests.get(URL, headers=HEADERS, params=params)
+        time.ctime(current_timestamp)
+    except TypeError:
+        raise TypeError(TIME_ERROR_MSG.format(timestamp=current_timestamp))
+    params = {'from_date': current_timestamp}
+    request_dict = {'url': URL, 'headers': HEADERS, 'params': params}
+    try:
+        response = requests.get(**request_dict)
         response_dict = response.json()
         if response_dict.get('code') or response_dict.get('error'):
             code = response_dict.get('code')
@@ -74,7 +89,7 @@ def get_homeworks(current_timestamp):
             raise Exception(JSON_ERROR_MSG.format(error=error, code=code))
         return response_dict
     except Exception as error:
-        raise Exception(REQUEST_ERROR_MSG.format(error=error))
+        raise Exception(REQUEST_ERR_MSG.format(error=error, dict=request_dict))
 
 
 def send_message(message):
@@ -83,8 +98,8 @@ def send_message(message):
         try:
             bot.send_message(CHAT_ID, message)
             logger.info(SENDING_MSG)
-        except Exception:
-            raise Exception(SEND_MESSAGE_ERROR)
+        except Exception as error:
+            raise Exception(error)
 
 
 def main():
