@@ -6,7 +6,7 @@ import time
 
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
-from telegram import TelegramError
+#from telegram import TelegramError
 
 
 load_dotenv()
