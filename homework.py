@@ -28,7 +28,7 @@ SLEEP_TIME = 10 * 60
 START_BOT_MSG = 'Бот стартовал!'
 START_TIME = int(time.time())
 TIME_ERROR_MSG = '{timestamp} не конвертируется в дату!'
-URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'
+URL = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 try:
     CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
     PRAKTIKUM_TOKEN = os.environ['PRAKTIKUM_TOKEN']
