@@ -6,7 +6,7 @@ import time
 
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
-# from telegram import TelegramError
+from telegram import TelegramError
 
 
 load_dotenv()
@@ -50,11 +50,11 @@ logger.setLevel(logging.DEBUG)
 handler = RotatingFileHandler(FILENAME, maxBytes=50000000, backupCount=2)
 logger.addHandler(handler)
 bot = telegram.Bot(token=TELEGRAM_TOKEN)
-# try:
-#     bot.get_me()
-#     logger.debug(START_BOT_MSG)
-# except TelegramError as error:
-#     raise TelegramError(BOT_ERROR_MSG.format(error=error))
+try:
+    bot.get_me()
+    logger.debug(START_BOT_MSG)
+except TelegramError as error:
+    raise TelegramError(BOT_ERROR_MSG.format(error=error))
 
 
 def parse_homework_status(homework):
@@ -118,7 +118,6 @@ def main():
         except Exception as error:
             message = MSG_BOT_IS_DOWN.format(error=error)
             logger.exception(message)
-            send_message(message)
             raise Exception(error)
 
 
